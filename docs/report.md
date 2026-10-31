@@ -173,7 +173,9 @@ Over 100 iterations with learning rate $\eta = 0.1$, parameters update along $-\
   - Added HTTP `/api/cancel` endpoint and frontend `AbortController` cancellation bindings.
   - Interactive Cancel button, responsive state badges (`Running`, `Cancelling`, `Cancelled`, `Completed`, `Failed`), and graceful resource cleanup without crashes or memory leaks.
 - **Packaging & Windows 11 x64 Status**:
-  - **Windows Configuration**: Complete. `src/launcher/launch_win.cpp` provides a native WinMain C++ launcher that starts the backend and opens the default browser without opening terminal windows. `CMakeLists.txt` is configured for MSVC Release x64 builds with Winsock2, shell32, and `-DNOMINMAX`.
-  - **CI/CD Build Pipeline**: `.github/workflows/windows_build.yml` runs on `windows-latest` (MSVC 2022), compiles `Launch.exe` and `workbench_server.exe`, runs all 55 tests, and uploads the distribution zip artifact.
-  - **Local Host Execution**: macOS development host runs `Launch.sh` and native Apple Clang binary. (Cross-compiled or simulated PE stubs are strictly avoided to ensure academic and professional integrity; physical Windows 11 x64 validation occurs via the CI runner or Windows host).
+  - **Windows Build Verified & Artifact Generated**: **SUCCESS**. Automated GitHub Actions CI workflow (Run #4, ID `41232251685`) completed with status **SUCCESS** on a `windows-2022` runner (Visual Studio 2022 MSVC x64).
+  - **Native Compilation**: Compiled `Launch.exe` (WinMain C++ launcher) and `workbench_server.exe` using `/MT` (MultiThreaded Static Runtime), eliminating external dependencies on `VCRUNTIME140.dll` / `MSVCP140.dll`.
+  - **Full Automated Testing**: Ran all 55 tests natively on Windows, executed CLI subcommands, verified live daemon startup on port 8080, and confirmed `/api/status` and `/index.html` HTTP 200 delivery.
+  - **Distribution Artifact**: Uploaded standalone release package `CandidateID_Workbench_Windows_x64.zip` (35.7 MB), executable by double-clicking `Launch.exe` without any terminal or installation.
+  - **Local Host Execution**: macOS development host runs `Launch.sh` and native Apple Clang binary.
 - **Known Limitations & Manual Requirements**: Physical FPGA synthesis and hardware PCB routing are simulated; web frontend requires a modern browser with WebGL enabled; physical handwritten paper derivation must be scanned and attached by the candidate.

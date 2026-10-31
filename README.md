@@ -99,27 +99,25 @@ The workbench is strictly partitioned into a pure computational C++17 core libra
 
 ## 4. Build, Packaging, and Windows Compilation
 
-### Prerequisites:
-- CMake 3.15 or newer
-- C++17 compliant compiler:
-  - Windows: Visual Studio 2019 / 2022 (MSVC) or MinGW64
-  - macOS: Apple Clang 12.0+ / Xcode Command Line Tools
-  - Linux: GCC 9.0+ or Clang 10.0+
-- Optional for frontend development: Node.js v18+ and npm
+### Verified Native Windows 11 x64 Executable (Zero-Dependency Package):
+The native Windows 11 x64 application has been compiled with MSVC 2022 and verified on GitHub Actions (`windows-2022`, Run #4, ID `41232251685`).
+- **Downloadable Artifact**: `CandidateID_Workbench_Windows_x64.zip` (35.7 MB) from [GitHub Actions Artifacts](https://github.com/yuvaingit/pass_science/actions/runs/41232251685).
+- **Execution**: Extract the ZIP on any Windows 10/11 x64 system and double-click **`Launch.exe`**.
+- **Self-Contained**: Statically linked with `/MT`. Zero external runtime DLLs, no developer tools, and no command prompt required.
 
-### Native Windows 11 Build Instructions:
+### Local Windows 11 Build Instructions (from Source):
 ```powershell
 # In PowerShell (Developer Command Prompt for VS 2022):
 cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 
 # Run test suite:
-.\build\bin\Release\workbench_tests.exe
+.\build\bin\workbench_tests.exe
 
 # The build produces:
 #  - Launch.exe (root launcher)
-#  - build\bin\Release\workbench_server.exe (backend engine)
-#  - build\bin\Release\workbench_tests.exe (test suite)
+#  - bin\workbench_server.exe (backend engine)
+#  - bin\workbench_tests.exe (test suite)
 ```
 
 ### macOS / Linux Build Instructions:

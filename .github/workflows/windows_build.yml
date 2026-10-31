@@ -10,7 +10,7 @@ on:
 jobs:
   build-windows:
     name: Build Native Windows x64 Release Executable
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Check out repository
@@ -46,11 +46,55 @@ jobs:
           }
           Write-Host "Frontend production bundle verified in dist/"
 
+      - name: Verify Visual Studio 2022 & C++ Toolchain
+        shell: pwsh
+        run: |
+          Write-Host "=== Diagnosing Visual Studio 2022 & C++ Build Environment ==="
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+              $vswhere = "vswhere.exe"
+          }
+          
+          Write-Host "Available Visual Studio instances on runner:"
+          & $vswhere -products * -format table
+
+          # Locate Visual Studio 2022 (v17.x) with MSVC C++ tools
+          $vsInstall = & $vswhere -version "[17.0,18.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+
+          if (-not $vsInstall) {
+              Write-Error "CRITICAL: Visual Studio 2022 with C++ workload was not found!"
+              exit 1
+          }
+
+          Write-Host "Found Visual Studio 2022 with C++ at: $vsInstall"
+
+          # Check Windows SDK availability
+          $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          if (Test-Path "$sdkPath\Include") {
+              $sdkVersions = Get-ChildItem -Path "$sdkPath\Include" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+              Write-Host "Available Windows SDK Versions: $($sdkVersions -join ', ')"
+          } else {
+              Write-Warning "Windows Kits directory not found at $sdkPath"
+          }
+
+          # Set CMAKE_GENERATOR_INSTANCE so CMake specifically binds to this Visual Studio 2022 instance
+          Write-Host "Setting CMAKE_GENERATOR_INSTANCE=$vsInstall in GITHUB_ENV"
+          "CMAKE_GENERATOR_INSTANCE=$vsInstall" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Configure CMake (Visual Studio 2022 x64)
         shell: pwsh
         run: |
           Write-Host "=== Configuring CMake for MSVC 2022 x64 ==="
-          cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+          Write-Host "Generator: Visual Studio 17 2022"
+          Write-Host "Architecture: x64"
+          Write-Host "Generator Instance: $env:CMAKE_GENERATOR_INSTANCE"
+
+          if ($env:CMAKE_GENERATOR_INSTANCE) {
+              cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_GENERATOR_INSTANCE="$env:CMAKE_GENERATOR_INSTANCE" -DCMAKE_BUILD_TYPE=Release
+          } else {
+              cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+          }
+
           if ($LASTEXITCODE -ne 0) {
               Write-Error "CMake configuration failed"
               exit $LASTEXITCODE

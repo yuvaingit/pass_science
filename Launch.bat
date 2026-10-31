@@ -14,6 +14,12 @@ if exist "bin\workbench_server.exe" (
     exit /b 0
 )
 
+if exist "build\bin\Release\workbench_server.exe" (
+    echo [INFO] Launching C++ backend server...
+    start "" "build\bin\Release\workbench_server.exe"
+    exit /b 0
+)
+
 if exist "build\bin\workbench_server.exe" (
     echo [INFO] Launching C++ backend server...
     start "" "build\bin\workbench_server.exe"

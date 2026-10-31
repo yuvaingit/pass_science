@@ -83,6 +83,8 @@ export interface ConvergenceEntry {
   orderOfConvergence?: number;
 }
 
+export type ComputationStatus = 'idle' | 'running' | 'cancelling' | 'cancelled' | 'completed' | 'failed';
+
 export interface FEASolveResult {
   params: FEAParams;
   nodes: FEANodeResult[];
@@ -90,6 +92,8 @@ export interface FEASolveResult {
   maxMidpointError: number;
   convergenceTable: ConvergenceEntry[];
   solveTimeMs: number;
+  status?: 'ok' | 'cancelled' | 'error';
+  message?: string;
 }
 
 // Task D: Performance Benchmark Types
@@ -105,10 +109,15 @@ export interface BenchmarkConfig {
 
 export interface ThreadRunRecord {
   threads: number;
+  poolInitMs?: number;
+  warmupMs?: number;
   repetitions: number[]; // 5 measured repetitions in ms
   medianMs: number;
+  serialTimeMs?: number;
+  parallelTimeMs?: number;
   speedup: number;       // T1 / Tp
-  efficiency: number;    // (T1 / Tp) / p
+  efficiency: number;    // (T1 / Tp) / p * 100%
+  poolShutdownMs?: number;
   maxTempDiff: number;   // Agreement with serial: <= 1e-8 C
 }
 
@@ -117,6 +126,7 @@ export interface BenchmarkResult {
   cpuInfo: string;
   logicalCores: number;
   physicalCores: number;
+  physicalCoresStr?: string;
   ramGb: number;
   compiler: string;
   flags: string;
@@ -124,6 +134,8 @@ export interface BenchmarkResult {
   runs: ThreadRunRecord[];
   serialParallelAgreementOk: boolean;
   launchToReadyMs: number;
+  status?: 'ok' | 'cancelled' | 'error';
+  message?: string;
 }
 
 // Task E: Hardware Integration Types

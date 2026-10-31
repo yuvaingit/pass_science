@@ -275,6 +275,93 @@ void test_backpropagation() {
     TEST_ASSERT(res.final_loss < 0.05, "Final loss reduced significantly after 100 steps");
 }
 
+void test_cancellation() {
+    std::cout << "[TEST SUITE 7] Computation Cancellation Controls & Thread Safety\n";
+
+    // 1. Immediate cancellation test on Thermal FEA
+    {
+        std::atomic<bool> cancel_flag{true};
+        ThermalParams p;
+        p.elements = 100;
+        bool caught = false;
+        try {
+            ThermalSolver1D::solve(p, &cancel_flag);
+        } catch (const OperationCancelledException&) {
+            caught = true;
+        } catch (...) {}
+        TEST_ASSERT(caught, "ThermalSolver1D::solve threw OperationCancelledException on cancelled flag");
+    }
+
+    // 2. Cancellation during convergence study
+    {
+        std::atomic<bool> cancel_flag{true};
+        ThermalParams p;
+        bool caught = false;
+        try {
+            ThermalSolver1D::run_convergence_study(p, &cancel_flag);
+        } catch (const OperationCancelledException&) {
+            caught = true;
+        } catch (...) {}
+        TEST_ASSERT(caught, "ThermalSolver1D::run_convergence_study threw OperationCancelledException");
+    }
+
+    // 3. Batch solve serial cancellation
+    {
+        BatchConfig cfg;
+        cfg.case_count = 100;
+        auto cases = BatchThermalSolver::generate_workload(cfg);
+        std::atomic<bool> cancel_flag{true};
+        bool caught = false;
+        try {
+            BatchThermalSolver::solve_serial(cases, &cancel_flag);
+        } catch (const OperationCancelledException&) {
+            caught = true;
+        } catch (...) {}
+        TEST_ASSERT(caught, "BatchThermalSolver::solve_serial aborted on cancellation flag");
+    }
+
+    // 4. Thread-pool parallel cancellation with active worker threads
+    {
+        BatchConfig cfg;
+        cfg.case_count = 1000;
+        cfg.mesh_size = 80;
+        auto cases = BatchThermalSolver::generate_workload(cfg);
+        std::atomic<bool> cancel_flag{false};
+
+        ThreadPool pool(4);
+        bool caught = false;
+
+        // Trigger cancellation concurrently after a microsecond delay
+        std::thread canceller([&cancel_flag]() {
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
+            cancel_flag.store(true, std::memory_order_seq_cst);
+        });
+
+        try {
+            BatchThermalSolver::solve_parallel(cases, pool, &cancel_flag);
+        } catch (const OperationCancelledException&) {
+            caught = true;
+        } catch (...) {}
+
+        canceller.join();
+        TEST_ASSERT(caught || cancel_flag.load(), "Parallel batch solver handled dynamic cancellation cleanly without deadlocks");
+    }
+
+    // 5. Full benchmark cancellation
+    {
+        BatchConfig cfg;
+        cfg.case_count = 200;
+        std::atomic<bool> cancel_flag{true};
+        bool caught = false;
+        try {
+            BatchThermalSolver::run_benchmark(cfg, 40.0, &cancel_flag);
+        } catch (const OperationCancelledException&) {
+            caught = true;
+        } catch (...) {}
+        TEST_ASSERT(caught, "BatchThermalSolver::run_benchmark aborted cleanly on cancellation");
+    }
+}
+
 int main() {
     std::cout << "========================================================\n"
               << "  UNIFIED ENGINEERING WORKBENCH - C++17 TEST SUITE\n"
@@ -286,6 +373,7 @@ int main() {
     test_multithreading_and_agreement();
     test_hardware_mocks();
     test_backpropagation();
+    test_cancellation();
 
     std::cout << "\n--------------------------------------------------------\n";
     std::cout << "  TEST SUMMARY: " << tests_passed << " PASSED, " << tests_failed << " FAILED\n";

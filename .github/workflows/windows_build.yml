@@ -1,0 +1,69 @@
+name: Windows 11 x64 Native Build & Packaging
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Native Windows x64 Release Executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Build React Frontend Bundle
+        run: |
+          cd src/frontend
+          npm ci
+          npm run build
+          cd ../..
+          if (!(Test-Path -Path "dist")) { New-Item -ItemType Directory -Path "dist" }
+          Copy-Item -Path "src/frontend/dist/*" -Destination "dist" -Recurse -Force
+
+      - name: Configure CMake (Visual Studio 2022 x64)
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build C++17 Solution & Native Launcher
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Execute C++17 Verification Test Suite
+        run: |
+          .\build\bin\Release\workbench_tests.exe
+
+      - name: Prepare Standalone Release Package
+        shell: pwsh
+        run: |
+          # Create binary directory
+          if (!(Test-Path -Path "bin")) { New-Item -ItemType Directory -Path "bin" }
+          Copy-Item -Path "build\bin\Release\workbench_server.exe" -Destination "bin\workbench_server.exe" -Force
+          
+          # Move native Launch.exe to root if built in build directory
+          if (Test-Path -Path "build\Launch.exe") {
+            Copy-Item -Path "build\Launch.exe" -Destination "Launch.exe" -Force
+          } elseif (Test-Path -Path "build\bin\Release\Launch.exe") {
+            Copy-Item -Path "build\bin\Release\Launch.exe" -Destination "Launch.exe" -Force
+          }
+
+          # Archive release package
+          Compress-Archive -Path Launch.exe, Launch.bat, bin, dist, data, results, docs, README.md, CMakeLists.txt, src, tests -DestinationPath CandidateID_Workbench_Windows_x64.zip -Force
+
+      - name: Upload Windows x64 Distribution Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CandidateID_Workbench_Windows_x64
+          path: CandidateID_Workbench_Windows_x64.zip
+          retention-days: 30

@@ -1,0 +1,11 @@
+# PASS SCIENCE WORKS - Multicore Benchmark Execution Report
+# CPU=Host Multi-Core CPU (10 Logical Cores, 10 Physical Cores), LogicalThreads=10, PhysicalCores=10, RAM=16.0000GB
+# Compiler=Clang 17.0, Flags=-O2 -std=c++17
+# Workload: TestCases=500, MeshSize=50, RandomSeed=42, Repetitions=5
+# WarmupDurationMs=0.1287, LaunchToReadyMs=40.0000
+# SerialExecutionMedianMs=0.8372, NumericalAgreementVerified=YES (<=1e-8 C)
+workers,cases,repetitions,seed,pool_init_ms,warmup_ms,rep1_ms,rep2_ms,rep3_ms,rep4_ms,rep5_ms,median_ms,serial_time_ms,parallel_time_ms,speedup_T1_Tp,efficiency_pct,pool_shutdown_ms,max_temp_diff_C,numerical_agreement
+1,500,5,42,0.0000,0.1287,0.8372,0.8514,0.7402,0.8860,0.8064,0.8372,0.8372,0.8372,1.0000,100.0000,0.0000,0.0000,PASS
+2,500,5,42,0.0184,0.0561,0.4275,0.3805,0.3847,0.3835,0.3792,0.3835,0.8372,0.3835,2.1828,109.1419,0.0208,0.0000,PASS
+4,500,5,42,0.0260,0.0826,0.2525,0.2399,0.1944,0.2115,0.1948,0.2115,0.8372,0.2115,3.9577,98.9416,0.0187,0.0000,PASS
+

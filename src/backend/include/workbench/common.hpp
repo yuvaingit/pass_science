@@ -50,6 +50,12 @@ public:
     explicit HardwareException(const std::string& msg) : WorkbenchException("Hardware Interface Error: " + msg) {}
 };
 
+class OperationCancelledException : public WorkbenchException {
+public:
+    explicit OperationCancelledException(const std::string& msg = "Operation cancelled by user.")
+        : WorkbenchException(msg) {}
+};
+
 // Minimal lightweight JSON builder helper for C++17 with zero third-party dependencies
 class JsonHelper {
 public:
@@ -77,6 +83,10 @@ public:
 
     static std::string error_response(const std::string& message) {
         return "{\"status\":\"error\",\"message\":\"" + escape(message) + "\"}";
+    }
+
+    static std::string cancelled_response(const std::string& message = "Operation cancelled by user.") {
+        return "{\"status\":\"cancelled\",\"message\":\"" + escape(message) + "\"}";
     }
 };
 

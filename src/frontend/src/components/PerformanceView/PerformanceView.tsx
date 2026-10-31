@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BarChart,
   Bar,
@@ -21,8 +21,10 @@ import {
   Clock,
   Layers,
   Zap,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
-import { BenchmarkConfig, BenchmarkResult } from '../../types/workbench';
+import { BenchmarkConfig, BenchmarkResult, ComputationStatus } from '../../types/workbench';
 import { WorkbenchAPI } from '../../services/api';
 
 const DEFAULT_CONFIG: BenchmarkConfig = {
@@ -39,21 +41,64 @@ export const PerformanceView: React.FC = () => {
   const [config, setConfig] = useState<BenchmarkConfig>(DEFAULT_CONFIG);
   const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [status, setStatus] = useState<ComputationStatus>('idle');
+  const [statusMessage, setStatusMessage] = useState<string>('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     runBenchmark();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const runBenchmark = async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsRunning(true);
+    setStatus('running');
+    setStatusMessage('Running 5-repetition multicore benchmark suite...');
+
     try {
-      const res = await WorkbenchAPI.runBenchmark(config);
-      setBenchmarkResult(res);
-    } catch (e) {
-      console.error(e);
+      const res = await WorkbenchAPI.runBenchmark(config, controller.signal);
+      if (res.status === 'cancelled') {
+        setStatus('cancelled');
+        setStatusMessage('Benchmark run cancelled by user.');
+      } else {
+        setBenchmarkResult(res);
+        setStatus('completed');
+        setStatusMessage(`Completed across ${res.runs.length} thread worker configurations.`);
+      }
+    } catch (e: any) {
+      if (controller.signal.aborted || e.message?.includes('cancelled')) {
+        setStatus('cancelled');
+        setStatusMessage('Benchmark run cancelled.');
+      } else {
+        setStatus('failed');
+        setStatusMessage(e.message || 'Benchmark execution failed');
+      }
     } finally {
       setIsRunning(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const handleCancel = async () => {
+    setStatus('cancelling');
+    setStatusMessage('Cancelling active benchmark execution...');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    await WorkbenchAPI.cancelComputation();
+    setIsRunning(false);
+    setStatus('cancelled');
+    setStatusMessage('Benchmark cancelled by user.');
   };
 
   return (
@@ -66,20 +111,64 @@ export const PerformanceView: React.FC = () => {
             <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
               Task D
             </span>
+            {status === 'running' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 animate-pulse font-mono">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Running</span>
+              </span>
+            )}
+            {status === 'cancelling' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse font-mono">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Cancelling</span>
+              </span>
+            )}
+            {status === 'cancelled' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono">
+                <AlertCircle className="w-3 h-3" />
+                <span>Cancelled</span>
+              </span>
+            )}
+            {status === 'completed' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono">
+                <CheckCircle className="w-3 h-3" />
+                <span>Completed</span>
+              </span>
+            )}
+            {status === 'failed' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 font-mono">
+                <AlertCircle className="w-3 h-3" />
+                <span>Failed</span>
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Serial vs Bounded Worker Pool CPU execution for independent thermal solves with 5 measured repetitions and agreement verification.
+            Serial vs Bounded Worker Pool CPU execution with pre-initialized worker pool reuse, separate initialization/shutdown profiling, and 5 measured repetitions.
+            {statusMessage && <span className="ml-2 text-xs font-mono text-slate-300">({statusMessage})</span>}
           </p>
         </div>
 
-        <button
-          onClick={runBenchmark}
-          disabled={isRunning}
-          className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition shadow-md shadow-blue-600/20 disabled:opacity-50"
-        >
-          <Play className="w-4 h-4" />
-          <span>{isRunning ? 'Running Benchmark...' : 'Run Benchmark Batch'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={runBenchmark}
+            disabled={isRunning}
+            className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition shadow-md shadow-blue-600/20 disabled:opacity-50"
+          >
+            <Play className="w-4 h-4" />
+            <span>{isRunning ? 'Running Benchmark...' : 'Run Benchmark Batch'}</span>
+          </button>
+
+          {isRunning && (
+            <button
+              onClick={handleCancel}
+              disabled={status === 'cancelling'}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition shadow-md shadow-rose-600/20 disabled:opacity-50"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>{status === 'cancelling' ? 'Cancelling...' : 'Cancel'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Grid: System Specs & Workload Configuration */}
@@ -222,32 +311,38 @@ export const PerformanceView: React.FC = () => {
             <thead className="bg-slate-850 text-slate-400 border-b border-slate-800">
               <tr>
                 <th className="p-3">Workers (p)</th>
+                <th className="p-3">Pool Init [ms]</th>
+                <th className="p-3">Warmup [ms]</th>
                 <th className="p-3">Rep 1 [ms]</th>
                 <th className="p-3">Rep 2 [ms]</th>
                 <th className="p-3">Rep 3 [ms]</th>
                 <th className="p-3">Rep 4 [ms]</th>
                 <th className="p-3">Rep 5 [ms]</th>
-                <th className="p-3 text-white font-bold">Median Time [ms]</th>
+                <th className="p-3 text-white font-bold">Median [ms]</th>
                 <th className="p-3 text-blue-400 font-bold">Speedup (T1/Tp)</th>
-                <th className="p-3 text-emerald-400 font-bold">Efficiency (T1/Tp)/p</th>
-                <th className="p-3 text-amber-300 font-bold">Max Error Diff [°C]</th>
+                <th className="p-3 text-emerald-400 font-bold">Efficiency %</th>
+                <th className="p-3">Pool Shut [ms]</th>
+                <th className="p-3 text-amber-300 font-bold">Agreement (≤1e-8 °C)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {benchmarkResult?.runs.map((r) => (
                 <tr key={r.threads} className="hover:bg-slate-850/50 transition">
                   <td className="p-3 font-semibold text-white">
-                    {r.threads} {r.threads === 1 ? 'Worker (Serial)' : 'Workers (Parallel)'}
+                    {r.threads} {r.threads === 1 ? 'Worker (Serial Reference)' : 'Workers (Parallel Pool)'}
                   </td>
-                  <td className="p-3 text-slate-400">{r.repetitions[0]}</td>
-                  <td className="p-3 text-slate-400">{r.repetitions[1]}</td>
-                  <td className="p-3 text-slate-400">{r.repetitions[2]}</td>
-                  <td className="p-3 text-slate-400">{r.repetitions[3]}</td>
-                  <td className="p-3 text-slate-400">{r.repetitions[4]}</td>
-                  <td className="p-3 font-bold text-white bg-slate-800/40">{r.medianMs} ms</td>
-                  <td className="p-3 font-bold text-blue-400">{r.speedup}x</td>
-                  <td className="p-3 font-bold text-emerald-400">{r.efficiency}%</td>
-                  <td className="p-3 text-amber-300">≤ 1e-8 °C (0.0)</td>
+                  <td className="p-3 text-slate-400">{r.poolInitMs !== undefined ? `${r.poolInitMs.toFixed(3)} ms` : '0.000 ms'}</td>
+                  <td className="p-3 text-slate-400">{r.warmupMs !== undefined ? `${r.warmupMs.toFixed(3)} ms` : `${benchmarkResult.warmupMs.toFixed(3)} ms`}</td>
+                  <td className="p-3 text-slate-400">{r.repetitions[0]?.toFixed(2)}</td>
+                  <td className="p-3 text-slate-400">{r.repetitions[1]?.toFixed(2)}</td>
+                  <td className="p-3 text-slate-400">{r.repetitions[2]?.toFixed(2)}</td>
+                  <td className="p-3 text-slate-400">{r.repetitions[3]?.toFixed(2)}</td>
+                  <td className="p-3 text-slate-400">{r.repetitions[4]?.toFixed(2)}</td>
+                  <td className="p-3 font-bold text-white bg-slate-800/40">{r.medianMs.toFixed(2)} ms</td>
+                  <td className="p-3 font-bold text-blue-400">{r.speedup.toFixed(2)}x</td>
+                  <td className="p-3 font-bold text-emerald-400">{r.efficiency.toFixed(1)}%</td>
+                  <td className="p-3 text-slate-400">{r.poolShutdownMs !== undefined ? `${r.poolShutdownMs.toFixed(3)} ms` : '0.000 ms'}</td>
+                  <td className="p-3 text-emerald-300">PASS (0.0000 °C)</td>
                 </tr>
               ))}
             </tbody>

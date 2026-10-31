@@ -51,17 +51,19 @@ struct ThermalFESolution {
     std::string to_csv() const;
 };
 
+#include <atomic>
+
 class ThermalSolver1D {
 public:
-    // Solve steady-state 1D thermal FEA for a given parameter set
-    static ThermalFESolution solve(const ThermalParams& p);
+    // Solve steady-state 1D thermal FEA for a given parameter set with optional cancellation
+    static ThermalFESolution solve(const ThermalParams& p, std::atomic<bool>* cancel_flag = nullptr);
 
     // Exact analytical temperature formula:
     // T_exact(x) = T0 + (TL - T0)*(x/L) + [q/(2k)] * x * (L - x)
     static double exact_temperature(double x, const ThermalParams& p);
 
-    // Run convergence study across N = 10, 20, 40, 80 elements
-    static std::vector<ConvergenceRow> run_convergence_study(const ThermalParams& base_params);
+    // Run convergence study across N = 10, 20, 40, 80 elements with optional cancellation
+    static std::vector<ConvergenceRow> run_convergence_study(const ThermalParams& base_params, std::atomic<bool>* cancel_flag = nullptr);
 };
 
 } // namespace workbench

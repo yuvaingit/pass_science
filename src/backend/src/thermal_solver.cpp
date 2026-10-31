@@ -12,7 +12,10 @@ double ThermalSolver1D::exact_temperature(double x, const ThermalParams& p) {
     return p.t0 + (p.tL - p.t0) * (x / p.length) + (p.heat_gen / (2.0 * p.conductivity)) * x * (p.length - x);
 }
 
-ThermalFESolution ThermalSolver1D::solve(const ThermalParams& p) {
+ThermalFESolution ThermalSolver1D::solve(const ThermalParams& p, std::atomic<bool>* cancel_flag) {
+    if (cancel_flag && cancel_flag->load(std::memory_order_relaxed)) {
+        throw OperationCancelledException("Thermal FEA computation was cancelled by user.");
+    }
     if (p.length <= 0.0) throw ValidationException("Rod length L must be positive.");
     if (p.area <= 0.0) throw ValidationException("Cross-sectional area A must be positive.");
     if (p.conductivity <= 0.0) throw ValidationException("Thermal conductivity k must be positive.");
@@ -38,6 +41,9 @@ ThermalFESolution ThermalSolver1D::solve(const ThermalParams& p) {
     const double fe = (p.heat_gen * p.area * h) / 2.0;
 
     for (int e = 0; e < N; ++e) {
+        if (cancel_flag && cancel_flag->load(std::memory_order_relaxed)) {
+            throw OperationCancelledException("Thermal FEA computation was cancelled by user.");
+        }
         diag[e] += ke;
         diag[e + 1] += ke;
         sub[e] -= ke;
@@ -128,13 +134,13 @@ ThermalFESolution ThermalSolver1D::solve(const ThermalParams& p) {
     sol.max_midpoint_error = max_err;
 
     // Run mesh convergence study for N = 10, 20, 40, 80
-    sol.convergence_study = run_convergence_study(p);
+    sol.convergence_study = run_convergence_study(p, cancel_flag);
     sol.solve_time_ms = timer.elapsed_ms();
 
     return sol;
 }
 
-std::vector<ConvergenceRow> ThermalSolver1D::run_convergence_study(const ThermalParams& base_params) {
+std::vector<ConvergenceRow> ThermalSolver1D::run_convergence_study(const ThermalParams& base_params, std::atomic<bool>* cancel_flag) {
     std::vector<ConvergenceRow> table;
     const std::vector<int> test_cases = {10, 20, 40, 80};
 
@@ -142,6 +148,9 @@ std::vector<ConvergenceRow> ThermalSolver1D::run_convergence_study(const Thermal
     double prev_h = 0.0;
 
     for (int N : test_cases) {
+        if (cancel_flag && cancel_flag->load(std::memory_order_relaxed)) {
+            throw OperationCancelledException("Convergence study cancelled by user.");
+        }
         ThermalParams p = base_params;
         p.elements = N;
 

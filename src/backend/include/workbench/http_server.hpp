@@ -174,6 +174,9 @@ private:
         try {
             if (path == "/api/status") {
                 response_content = handle_status();
+            } else if (path == "/api/cancel" && method == "POST") {
+                active_cancellation_.store(true, std::memory_order_seq_cst);
+                response_content = "{\"status\":\"ok\",\"message\":\"Cancellation requested successfully\"}";
             } else if (path == "/api/stl/parse" && method == "POST") {
                 response_content = handle_stl_parse(body);
             } else if (path == "/api/ansys/parse" && method == "POST") {
@@ -196,6 +199,9 @@ private:
                 closesocket(client_fd);
                 return;
             }
+        } catch (const OperationCancelledException& e) {
+            status_code = 200;
+            response_content = JsonHelper::cancelled_response(e.what());
         } catch (const std::exception& e) {
             status_code = 400;
             response_content = JsonHelper::error_response(e.what());
@@ -360,7 +366,8 @@ private:
         p.tL = parse_json_double(body, "tL", 20.0);
         p.elements = static_cast<int>(parse_json_double(body, "elements", 20.0));
 
-        auto sol = ThermalSolver1D::solve(p);
+        active_cancellation_.store(false, std::memory_order_relaxed);
+        auto sol = ThermalSolver1D::solve(p, &active_cancellation_);
         return sol.to_json();
     }
 
@@ -370,7 +377,8 @@ private:
         cfg.mesh_size = static_cast<int>(parse_json_double(body, "meshSize", 50.0));
         cfg.seed = static_cast<uint32_t>(parse_json_double(body, "seed", 42.0));
 
-        auto report = BatchThermalSolver::run_benchmark(cfg);
+        active_cancellation_.store(false, std::memory_order_relaxed);
+        auto report = BatchThermalSolver::run_benchmark(cfg, 40.0, &active_cancellation_);
         return report.to_json();
     }
 
@@ -405,6 +413,7 @@ private:
     int port_;
     std::string static_dir_;
     std::atomic<bool> running_;
+    std::atomic<bool> active_cancellation_{false};
     SOCKET server_fd_;
     std::unique_ptr<HardwareWorkbenchManager> hardware_mgr_;
 };

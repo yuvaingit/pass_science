@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LineChart,
   Line,
@@ -18,8 +18,11 @@ import {
   TrendingDown,
   Layers,
   FileSpreadsheet,
+  XCircle,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
-import { FEAParams, FEASolveResult } from '../../types/workbench';
+import { FEAParams, FEASolveResult, ComputationStatus } from '../../types/workbench';
 import { WorkbenchAPI } from '../../services/api';
 
 const DEFAULT_PARAMS: FEAParams = {
@@ -36,25 +39,68 @@ export const ThermalFEAView: React.FC = () => {
   const [params, setParams] = useState<FEAParams>(DEFAULT_PARAMS);
   const [result, setResult] = useState<FEASolveResult | null>(null);
   const [isSolving, setIsSolving] = useState(false);
+  const [status, setStatus] = useState<ComputationStatus>('idle');
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const [selectedN, setSelectedN] = useState<number>(20);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-solve on mount or parameter change
   useEffect(() => {
     runSolve(selectedN);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const runSolve = async (elementsToSolve: number = selectedN) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsSolving(true);
+    setStatus('running');
+    setStatusMessage('Solving tridiagonal system and convergence mesh study...');
+
     try {
       const p = { ...params, elements: elementsToSolve };
-      const res = await WorkbenchAPI.solveThermalFEA(p);
-      setResult(res);
-      setSelectedN(elementsToSolve);
-    } catch (e) {
-      console.error(e);
+      const res = await WorkbenchAPI.solveThermalFEA(p, controller.signal);
+      if (res.status === 'cancelled') {
+        setStatus('cancelled');
+        setStatusMessage('Computation was cancelled by user.');
+      } else {
+        setResult(res);
+        setSelectedN(elementsToSolve);
+        setStatus('completed');
+        setStatusMessage(`Completed in ${res.solveTimeMs.toFixed(2)} ms`);
+      }
+    } catch (e: any) {
+      if (controller.signal.aborted || e.message?.includes('cancelled')) {
+        setStatus('cancelled');
+        setStatusMessage('Computation cancelled.');
+      } else {
+        setStatus('failed');
+        setStatusMessage(e.message || 'FEA computation failed');
+      }
     } finally {
       setIsSolving(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const handleCancel = async () => {
+    setStatus('cancelling');
+    setStatusMessage('Cancelling active FEA computation...');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    await WorkbenchAPI.cancelComputation();
+    setIsSolving(false);
+    setStatus('cancelled');
+    setStatusMessage('Computation cancelled by user.');
   };
 
   const handleExportCSV = () => {
@@ -95,9 +141,40 @@ export const ThermalFEAView: React.FC = () => {
             <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
               Task C
             </span>
+            {status === 'running' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 animate-pulse font-mono">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Running</span>
+              </span>
+            )}
+            {status === 'cancelling' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse font-mono">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Cancelling</span>
+              </span>
+            )}
+            {status === 'cancelled' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono">
+                <AlertCircle className="w-3 h-3" />
+                <span>Cancelled</span>
+              </span>
+            )}
+            {status === 'completed' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono">
+                <CheckCircle className="w-3 h-3" />
+                <span>Completed</span>
+              </span>
+            )}
+            {status === 'failed' && (
+              <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 font-mono">
+                <AlertCircle className="w-3 h-3" />
+                <span>Failed</span>
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-400 mt-1">
             Uniform rod with internal volumetric heat generation, two-node linear elements, and midpoint error convergence study.
+            {statusMessage && <span className="ml-2 text-xs font-mono text-slate-300">({statusMessage})</span>}
           </p>
         </div>
 
@@ -108,10 +185,11 @@ export const ThermalFEAView: React.FC = () => {
               <button
                 key={n}
                 onClick={() => runSolve(n)}
+                disabled={isSolving}
                 className={`px-3 py-1 rounded text-xs font-mono font-medium transition ${
                   selectedN === n
                     ? 'bg-blue-600 text-white shadow'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-400 hover:text-slate-200 disabled:opacity-50'
                 }`}
               >
                 N={n}
@@ -128,10 +206,21 @@ export const ThermalFEAView: React.FC = () => {
             <span>{isSolving ? 'Solving...' : 'Re-Solve FEA'}</span>
           </button>
 
+          {isSolving && (
+            <button
+              onClick={handleCancel}
+              disabled={status === 'cancelling'}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium transition shadow-md shadow-rose-600/20 disabled:opacity-50"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>{status === 'cancelling' ? 'Cancelling...' : 'Cancel'}</span>
+            </button>
+          )}
+
           <button
             onClick={handleExportCSV}
-            disabled={!result}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition"
+            disabled={!result || isSolving}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export Results CSV</span>

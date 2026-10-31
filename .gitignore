@@ -11,7 +11,9 @@ bin/
 
 # Node / Frontend
 node_modules/
-!dist/
+src/frontend/dist/
+CandidateID_Workbench.zip
+!/dist/
 .vite/
 npm-debug.log*
 yarn-debug.log*

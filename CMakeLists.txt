@@ -7,8 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Optimization & warning flags
 if(MSVC)
-    add_compile_options(/W4 /permissive- /EHsc /O2)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_compile_options(/W4 /permissive- /EHsc /O2 /MD)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -O3)
 endif()
@@ -47,6 +47,13 @@ target_link_libraries(workbench_server PRIVATE workbench_core)
 
 if(WIN32)
     target_link_libraries(workbench_server PRIVATE ws2_32 shell32)
+
+    # Windows 11 Native GUI Launcher (Launch.exe)
+    add_executable(Launch WIN32
+        src/launcher/launch_win.cpp
+    )
+    target_link_libraries(Launch PRIVATE shell32)
+    set_target_properties(Launch PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/..")
 endif()
 
 # Output directories

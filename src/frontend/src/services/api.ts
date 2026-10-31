@@ -79,35 +79,64 @@ export class WorkbenchAPI {
     }
   }
 
+  // Cancel ongoing computation in C++ backend
+  static async cancelComputation(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   // Run Thermal FEA Solver
-  static async solveThermalFEA(params: FEAParams): Promise<FEASolveResult> {
+  static async solveThermalFEA(params: FEAParams, signal?: AbortSignal): Promise<FEASolveResult> {
     try {
       const res = await fetch(`${API_BASE}/thermal/solve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
+        signal,
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        if (data.status === 'cancelled') {
+          return { ...this.clientSolveThermalFEA(params), status: 'cancelled', message: data.message };
+        }
+        return data;
       }
-    } catch {
+    } catch (e: any) {
+      if (e.name === 'AbortError' || signal?.aborted) {
+        throw new Error('Computation cancelled by user.');
+      }
       // Fallback to client numerical solver
     }
     return this.clientSolveThermalFEA(params);
   }
 
   // Run Multicore Benchmark
-  static async runBenchmark(config: BenchmarkConfig): Promise<BenchmarkResult> {
+  static async runBenchmark(config: BenchmarkConfig, signal?: AbortSignal): Promise<BenchmarkResult> {
     try {
       const res = await fetch(`${API_BASE}/benchmark/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
+        signal,
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        if (data.status === 'cancelled') {
+          return { ...this.clientRunBenchmark(config), status: 'cancelled', message: data.message };
+        }
+        return data;
       }
-    } catch {
+    } catch (e: any) {
+      if (e.name === 'AbortError' || signal?.aborted) {
+        throw new Error('Benchmark cancelled by user.');
+      }
       // Fallback
     }
     return this.clientRunBenchmark(config);

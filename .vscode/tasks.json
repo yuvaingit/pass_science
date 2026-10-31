@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build C++ Backend",
+      "type": "shell",
+      "command": "cmake -B build && cmake --build build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build Frontend",
+      "type": "shell",
+      "command": "cd src/frontend && npm run build",
+      "problemMatcher": []
+    }
+  ]
+}

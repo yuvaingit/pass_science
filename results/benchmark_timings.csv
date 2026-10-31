@@ -1,0 +1,9 @@
+# PASS SCIENCE WORKS - Multicore Benchmark Execution Report
+# CPU=Host Multi-Core CPU (10 Logical Cores), LogicalCores=10, RAM=16.0000GB
+# Compiler=Clang 17.0, Flags=-O2 -std=c++17
+# Workload: Cases=500, MeshSize=50, Seed=42
+workers,rep1_ms,rep2_ms,rep3_ms,rep4_ms,rep5_ms,median_ms,speedup_T1_Tp,efficiency_pct,max_temp_diff_C
+1,0.8763,0.7585,0.7513,0.7508,0.7510,0.7513,1.0000,100.0000,0.0000
+2,0.5055,0.4877,0.4517,0.4966,0.4214,0.4877,1.5406,77.0294,0.0000
+4,0.2732,0.2398,0.2419,0.2715,0.2444,0.2444,3.0743,76.8585,0.0000
+

@@ -7,11 +7,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Optimization & warning flags
 if(MSVC)
-    add_compile_options(/W4 /permissive- /EHsc /O2 /MD)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    add_compile_options(/W4 /permissive- /EHsc /O2)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DNOMINMAX)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -O3)
 endif()
+
+# Global runtime output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin")
 
 # Include directories
 include_directories(
@@ -46,19 +52,28 @@ add_executable(workbench_server
 target_link_libraries(workbench_server PRIVATE workbench_core)
 
 if(WIN32)
-    target_link_libraries(workbench_server PRIVATE ws2_32 shell32)
+    target_link_libraries(workbench_server PRIVATE ws2_32 shell32 user32)
 
     # Windows 11 Native GUI Launcher (Launch.exe)
     add_executable(Launch WIN32
         src/launcher/launch_win.cpp
     )
-    target_link_libraries(Launch PRIVATE shell32)
-    set_target_properties(Launch PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/..")
+    target_link_libraries(Launch PRIVATE shell32 user32)
+    set_target_properties(Launch PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"
+    )
 endif()
 
 # Output directories
-set_target_properties(workbench_server PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-set_target_properties(workbench_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set_target_properties(workbench_server PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"
+)
+set_target_properties(workbench_tests PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"
+)
 
 enable_testing()
 add_test(NAME AllWorkbenchTests COMMAND workbench_tests)

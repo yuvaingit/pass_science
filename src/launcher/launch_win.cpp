@@ -47,7 +47,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         si.wShowWindow = SW_HIDE; // Run background daemon without terminal popup
         ZeroMemory(&pi, sizeof(pi));
 
-        std::wstring cmd = L"\"" + serverExePath + L"\" --port 8080";
+        std::wstring cmd = L"\"" + serverExePath + L"\" --port 8080 --no-browser";
         std::vector<wchar_t> cmdBuffer(cmd.begin(), cmd.end());
         cmdBuffer.push_back(L'\0');
 

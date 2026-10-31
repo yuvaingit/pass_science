@@ -132,10 +132,28 @@ BenchmarkReport BatchThermalSolver::run_benchmark(
         report.physical_cores_str = "unavailable";
     }
 #elif defined(_WIN32)
-    DWORD pcores = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
-    if (pcores > 0) {
-        report.physical_cores = static_cast<unsigned int>(pcores);
-        report.physical_cores_str = std::to_string(pcores);
+    DWORD returnLength = 0;
+    GetLogicalProcessorInformation(NULL, &returnLength);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && returnLength > 0) {
+        std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buffer(returnLength / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
+        if (GetLogicalProcessorInformation(buffer.data(), &returnLength)) {
+            unsigned int coreCount = 0;
+            for (const auto& info : buffer) {
+                if (info.Relationship == RelationProcessorCore) {
+                    coreCount++;
+                }
+            }
+            if (coreCount > 0) {
+                report.physical_cores = coreCount;
+                report.physical_cores_str = std::to_string(coreCount);
+            } else {
+                report.physical_cores = std::max(1u, hw_threads / 2u);
+                report.physical_cores_str = "unavailable";
+            }
+        } else {
+            report.physical_cores = std::max(1u, hw_threads / 2u);
+            report.physical_cores_str = "unavailable";
+        }
     } else {
         report.physical_cores = std::max(1u, hw_threads / 2u);
         report.physical_cores_str = "unavailable";

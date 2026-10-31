@@ -235,7 +235,7 @@ private:
             return;
         }
 
-        std::vector<std::string> search_dirs = { static_dir_, "src/frontend/dist", "../src/frontend/dist" };
+        std::vector<std::string> search_dirs = { static_dir_, "../" + static_dir_, "../dist", "dist", "src/frontend/dist", "../src/frontend/dist" };
         std::string file_path;
         bool found = false;
 

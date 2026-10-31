@@ -161,16 +161,18 @@ jobs:
 
           # 2. Test daemon socket binding and HTTP responses
           Write-Host "Starting workbench_server daemon on port 8080..."
-          $serverProc = Start-Process -FilePath $serverExe.FullName -ArgumentList "--port 8080 --no-browser" -PassThru
-          Start-Sleep -Milliseconds 800
+          $repoRoot = (Get-Location).Path
+          $serverProc = Start-Process -FilePath $serverExe.FullName -ArgumentList "--port 8080 --no-browser" -WorkingDirectory $repoRoot -PassThru
+          Start-Sleep -Milliseconds 1200
 
           try {
               $statusResp = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/status" -TimeoutSec 5
               Write-Host "HTTP /api/status response: $($statusResp | ConvertTo-Json -Compress)"
-              if ($statusResp.status -ne "ok") {
-                  Write-Error "Server returned non-ok status: $($statusResp.status)"
+              if ($statusResp.backendConnected -ne $true) {
+                  Write-Error "Server did not report backendConnected = true"
                   exit 1
               }
+              Write-Host "Server verified: backendConnected = $($statusResp.backendConnected), os = $($statusResp.os)"
 
               $indexResp = Invoke-WebRequest -Uri "http://127.0.0.1:8080/index.html" -TimeoutSec 5
               Write-Host "HTTP /index.html status: $($indexResp.StatusCode)"
